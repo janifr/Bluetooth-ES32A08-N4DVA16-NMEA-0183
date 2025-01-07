@@ -106,8 +106,8 @@ uint8_t Input_ES32A08_Digital(void)
 
 void IRAM_ATTR Update_Outputs()
 {
-   if (modbus_ok)
-    display[1] |= 0x80;
+  /*if (modbus_ok)*/
+  display[1] |= 0x80;
   Output_ES32A08(display[3-segment_counter],segment >> segment_counter,outputs);
   segment_counter++;
   if(segment_counter>3)
@@ -178,7 +178,7 @@ void Display_Update()
     voltage_counter=0;
 }
 
-void Modbus_Read()
+void Bluetooth_Write()
 {
   uint8_t result;
   digitalWrite(POWER_LED, 1);
@@ -186,7 +186,7 @@ void Modbus_Read()
   char message_buffer[80];
   int message_length = 0;
   uint8_t crc = 0;
-  uint8_t crc_incoming;
+  //uint8_t crc_incoming;
 
   // Read 16 registers starting at 0x0000)
   result = node.readInputRegisters(0x0000, 16);
@@ -196,17 +196,24 @@ void Modbus_Read()
     
     for(int i=0;i<16;i++)
     {
-      n4dva16_voltage[i]=node.getResponseBuffer(i);
-      
-      message_length = 0;
+      n4dva16_voltage[i]=node.getResponseBuffer(i);   
+      //message_length = 0;
       crc = 0;
-      message_length += sprintf(message_buffer, "$ERAI%X,%u*",i,n4dva16_voltage[i]);
+      message_length /*+*/ = sprintf(message_buffer, "$ERAI%X,%u*",i,n4dva16_voltage[i]);
       for(int j=1;message_buffer[j]!='*';j++)
         crc = crc ^ message_buffer[j];
-      message_length += sprintf(message_buffer + message_length, "%02x\r\n", crc);
+      /*message_length +=*/ sprintf(message_buffer + message_length, "%02X\r\n", crc);
       SerialBT.print(message_buffer);
     }
   }
+  digitalWrite(POWER_LED, 0);
+
+  crc=0;
+  message_length /*+*/ = sprintf(message_buffer, "$ERDI,%u*",Input_ES32A08_Digital());
+  for(int j=1;message_buffer[j]!='*';j++)
+    crc = crc ^ message_buffer[j];
+  sprintf(message_buffer + message_length, "%02X\r\n", crc);
+  SerialBT.print(message_buffer);
 }
 
 void Bluetooth_Read()
@@ -287,16 +294,16 @@ void setup() {
 
 void loop()
 {
-  static int Modbus_Read_Counter=0;
+  static int Bluetooth_Write_Counter=0;
 
   Bluetooth_Read();
   Display_Update();
 
-  Modbus_Read_Counter++;
-  if (Modbus_Read_Counter > 10)
+  Bluetooth_Write_Counter++;
+  if (Bluetooth_Write_Counter > 10)
   {
-    Modbus_Read();
-    Modbus_Read_Counter = 0;
+    Bluetooth_Write();
+    Bluetooth_Write_Counter = 0;
   }
 
   delay(100);
