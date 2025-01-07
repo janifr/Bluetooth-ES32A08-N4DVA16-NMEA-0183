@@ -106,7 +106,6 @@ uint8_t Input_ES32A08_Digital(void)
 
 void IRAM_ATTR Update_Outputs()
 {
-  /*if (modbus_ok)*/
   display[1] |= 0x80;
   Output_ES32A08(display[3-segment_counter],segment >> segment_counter,outputs);
   segment_counter++;
@@ -186,7 +185,6 @@ void Bluetooth_Write()
   char message_buffer[80];
   int message_length = 0;
   uint8_t crc = 0;
-  //uint8_t crc_incoming;
 
   // Read 16 registers starting at 0x0000)
   result = node.readInputRegisters(0x0000, 16);
@@ -197,19 +195,18 @@ void Bluetooth_Write()
     for(int i=0;i<16;i++)
     {
       n4dva16_voltage[i]=node.getResponseBuffer(i);   
-      //message_length = 0;
       crc = 0;
-      message_length /*+*/ = sprintf(message_buffer, "$ERAI%X,%u*",i,n4dva16_voltage[i]);
+      message_length = sprintf(message_buffer, "$ERAI%X,%u*",i,n4dva16_voltage[i]);
       for(int j=1;message_buffer[j]!='*';j++)
         crc = crc ^ message_buffer[j];
-      /*message_length +=*/ sprintf(message_buffer + message_length, "%02X\r\n", crc);
+      sprintf(message_buffer + message_length, "%02X\r\n", crc);
       SerialBT.print(message_buffer);
     }
   }
   digitalWrite(POWER_LED, 0);
 
   crc=0;
-  message_length /*+*/ = sprintf(message_buffer, "$ERDI,%u*",Input_ES32A08_Digital());
+  message_length = sprintf(message_buffer, "$ERDIB,%u*",Input_ES32A08_Digital());
   for(int j=1;message_buffer[j]!='*';j++)
     crc = crc ^ message_buffer[j];
   sprintf(message_buffer + message_length, "%02X\r\n", crc);
