@@ -23,13 +23,11 @@ BluetoothSerial SerialBT;
 uint8_t relay = 1;
 uint8_t segment = 0xf7;
 uint8_t segment_counter = 0;
-uint8_t voltage_counter = 0;
 uint8_t display[4];
 uint16_t n4dva16_voltage[16];
 uint32_t button_age[4];
 const uint8_t button_pin[] = {18,19,21,23};
 uint8_t channel = 0;
-uint8_t channel_old = 0;
 uint8_t channel_age = 0;
 uint8_t outputs = 0;
 uint8_t outputs_age = 0;
@@ -106,7 +104,7 @@ uint8_t Input_ES32A08_Digital(void)
 
 void IRAM_ATTR Update_Outputs()
 {
-  display[1] |= 0x80;
+  digitalWrite(POWER_LED, 1);
   Output_ES32A08(display[3-segment_counter],segment >> segment_counter,outputs);
   segment_counter++;
   if(segment_counter>3)
@@ -147,40 +145,37 @@ void IRAM_ATTR Update_Outputs()
     channel++;
     button_age[1] = 250;
   }
+  digitalWrite(POWER_LED, 0);
 }
 
 void Display_Update()
 {
   char buffer[10];
 
-  if (channel_age)
-  {
-    sprintf(buffer, "CH%2u",channel+1);
+  if(channel_age>0)
     channel_age--;
-  } 
-  else
-    sprintf(buffer, "%4u",n4dva16_voltage[channel]);
 
-  if (channel != channel_old)
-  {
+  if (button_age[0] || button_age[1])
     channel_age=10;
-    channel_old = channel;
-  }
+
+  if (channel_age)
+    sprintf(buffer, "CH%2u",channel+1);
+  else
+    sprintf(buffer, "%04u",n4dva16_voltage[channel]);
 
   display[0]=SEG8Code[buffer[0]];
   display[1]=SEG8Code[buffer[1]];
   display[2]=SEG8Code[buffer[2]];
   display[3]=SEG8Code[buffer[3]];
 
-  voltage_counter++;
-  if (voltage_counter>31)
-    voltage_counter=0;
+  if (!channel_age)
+    display[1] |= 0x80;
 }
 
 void Bluetooth_Write()
 {
   uint8_t result;
-  digitalWrite(POWER_LED, 1);
+  //digitalWrite(POWER_LED, 1);
   modbus_ok = 0;
   char message_buffer[80];
   int message_length = 0;
@@ -203,7 +198,7 @@ void Bluetooth_Write()
       SerialBT.print(message_buffer);
     }
   }
-  digitalWrite(POWER_LED, 0);
+  //digitalWrite(POWER_LED, 0);
 
   crc=0;
   message_length = sprintf(message_buffer, "$ERDIB,%u*",Input_ES32A08_Digital());
