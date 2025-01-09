@@ -31,6 +31,9 @@ uint8_t channel = 0;
 uint8_t channel_age = 0;
 uint8_t outputs = 0;
 uint8_t outputs_age = 0;
+uint8_t inputs = 0;
+uint8_t inputs_old = 0;
+uint32_t input_counter[8];
 
 ModbusMaster node;
 uint8_t modbus_ok= 0;
@@ -102,9 +105,27 @@ uint8_t Input_ES32A08_Digital(void)
   return temp;
 }
 
-void IRAM_ATTR Update_Outputs()
+void IRAM_ATTR Update_Onboard_IO()
 {
+  static uint32_t cycle_counter = 0;
+  uint8_t inputs_raising_edge;
+
   digitalWrite(POWER_LED, 1);
+  inputs = Input_ES32A08_Digital();
+  inputs_raising_edge = inputs & ~inputs_old;
+  inputs_old = inputs;
+
+  for (int i=0;i<8;i++)
+    if (inputs_raising_edge & 1<<i)
+      input_counter[i]++;
+
+  if (cycle_counter < 10)
+  {
+    cycle_counter++;
+    return;
+  }
+  cycle_counter = 0;
+
   Output_ES32A08(display[3-segment_counter],segment >> segment_counter,outputs);
   segment_counter++;
   if(segment_counter>3)
@@ -201,11 +222,21 @@ void Bluetooth_Write()
   //digitalWrite(POWER_LED, 0);
 
   crc=0;
-  message_length = sprintf(message_buffer, "$ERDIB,%u*",Input_ES32A08_Digital());
+  message_length = sprintf(message_buffer, "$ERDIB,%u*",inputs);
   for(int j=1;message_buffer[j]!='*';j++)
     crc = crc ^ message_buffer[j];
   sprintf(message_buffer + message_length, "%02X\r\n", crc);
   SerialBT.print(message_buffer);
+    
+  for(int i=0;i<8;i++)
+  {
+    crc = 0;
+    message_length = sprintf(message_buffer, "$ERCT%X,%u*",i,input_counter[i]);
+    for(int j=1;message_buffer[j]!='*';j++)
+      crc = crc ^ message_buffer[j];
+    sprintf(message_buffer + message_length, "%02X\r\n", crc);
+    SerialBT.print(message_buffer);
+  }
 }
 
 void Bluetooth_Read()
@@ -251,8 +282,8 @@ void Bluetooth_Read()
 
 void setup() {
   output_timer = timerBegin(0, 80, true);
-  timerAttachInterrupt(output_timer, &Update_Outputs, true);
-  timerAlarmWrite(output_timer, 1000, true);
+  timerAttachInterrupt(output_timer, &Update_Onboard_IO, true);
+  timerAlarmWrite(output_timer, 100, true);
   timerAlarmEnable(output_timer);
   
   pinMode(HC595_CLOCK, OUTPUT);
